@@ -1,0 +1,32 @@
+---
+- name: Collectd playbook
+  hosts: localhost
+  connection: local
+
+  vars:
+    collectd_interval: 10
+    collectd_plugins: [network, cpu, df, memory]
+    collectd_service_name: collectd
+    collectd_package_name: collectd
+
+  handlers:
+  - name: Enable and restart collectd service
+    service:
+      name: "{{ collectd_service_name }}"
+      state: restarted
+      enabled: yes
+
+  tasks:
+  - name: Install collectd
+    package:
+      name: "{{ collectd_package_name }}"
+      state: present
+  - name: Write collectd conf
+    template:
+      src: templates/collectd.conf
+      dest: /etc/collectd/collectd.conf
+  - name: Write collectd plugins
+    template: src=templates/plugins/{{ item }}.conf dest=/etc/collectd/collectd.d/{{ item }}.conf
+    with_items: "{{ collectd_plugins }}"
+    notify:
+      - Enable and restart collectd service
