@@ -1,0 +1,84 @@
+#
+# This Vagrantfile sets up the infrastructure needed for a simple local kubernetes cluster.
+#
+# filename: Vagrantfile.local_k8s
+# author: Amir Heinisch <mail@amir-heinisch.de>
+# version: 02/01/2021
+#
+
+# Minimum Vagrant version.
+Vagrant.require_version ">= 1.6.0"
+# Minimum Vagrant API version.
+VAGRANTFILE_API_VERSION = "2"
+
+SETUP_NAME = "LocalK8sCluster"
+BASE_IP = "10.168.33."
+ANSIBLE_PATH = "./provisioning/"
+
+MASTER_COUNT = 1
+WORKER_COUNT= 3
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+
+  # Define boxes to use.
+  config.vm.box = "hashicorp/bionic64"
+  # TODO: add ansible rules centos.
+  # config.vm.box = "centos/7"
+  # config.vm.box_version = "1905.1"
+
+  # Be sure packages are up to date an python3 is installed.
+  # TODO:Write script for all major platforms.
+  # config.vm.provision "shell", inline: "yum -y -q update && yum install -y -q python3"
+  config.vm.provision "shell", inline: "sudo apt-get -y -q update && sudo apt-get -y -q install python3"
+
+  # Configure virtualbox as default provider.
+  config.vm.provider "virtualbox" do |vb|
+    vb.gui = false
+    vb.customize ["modifyvm", :id,
+                  "--groups", "/#{SETUP_NAME}",
+                  "--audio", "none",
+                  "--clipboard-mode", "disabled",
+                  "--draganddrop", "disabled",
+                  "--cpus", "2",
+                  "--memory", "1024"]
+  end
+
+  ## Create and provision defined number of master nodes.
+  # TODO: if MASTER_COUNT > 1 we need a loadbalancer node.
+  (1..MASTER_COUNT).each do |i|
+    config.vm.define "master-#{i}" do |master|
+      master.vm.hostname = "master-#{i}"
+      master.vm.network "private_network", ip: "#{BASE_IP}#{i+9}"
+      master.vm.provision "ansible" do |ansible|
+        ansible.playbook = "#{ANSIBLE_PATH}/master.yaml"
+        ansible.extra_vars = {
+          node_ip: "#{BASE_IP}#{i+9}"
+        }
+      end
+    end
+  end
+
+  ## Create and provision defined number of worker nodes.
+  (1..WORKER_COUNT).each do |i|
+    config.vm.define "worker-#{i}" do |worker|
+      worker.vm.hostname = "worker-#{i}"
+      worker.vm.network "private_network", ip: "#{BASE_IP}#{i+19}"
+      worker.vm.provision "ansible" do |ansible|
+        ansible.playbook = "#{ANSIBLE_PATH}/worker.yaml"
+        ansible.extra_vars = {
+          node_ip: "#{BASE_IP}#{i+19}"
+        }
+      end
+    end
+  end
+
+  ## Create and provision a host to control the cluster.
+  ## This host should contain all stuff needed to run a cluster:
+  ## - dotfiles, octant, helm, kubectl, kubeconfig, ssh-configs/keys
+  config.vm.define "cluster-admin" do |ca|
+    ca.vm.box = "archlinux/archlinux"
+    ca.vm.hostname = "cluster-admin"
+    ca.vm.network =  "private_network", ip: "#{BASE_IP}3"
+  end
+
+end

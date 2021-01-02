@@ -1,0 +1,41 @@
+#
+# This Vagrantfile sets up a simple vm for testing.
+#
+# filename: Vagrantfile.simple
+# author: Amir Heinisch <mail@amir-heinisch.de>
+# version: 02/01/2021
+#
+
+# Minimum Vagrant version.
+Vagrant.require_version ">= 1.6.0"
+# Minimum Vagrant API version.
+VAGRANTFILE_API_VERSION = "2"
+
+SETUP_NAME = "SimpleSetup"
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+
+  # Define box to use.
+  config.vm.box = "hashicorp/bionic64"
+
+  # Make sure packages are up to date an python3 is installed.
+  config.vm.provision "shell", inline: "sudo apt-get -y -q update && sudo apt-get -y -q install python3"
+
+  # Configure virtualbox as default provider.
+  config.vm.provider "virtualbox" do |vb|
+    vb.gui = false
+    vb.customize ["modifyvm", :id,
+                  "--groups", "/#{SETUP_NAME}",
+                  "--audio", "none",
+                  "--clipboard-mode", "disabled",
+                  "--draganddrop", "disabled",
+                  "--cpus", "2",
+                  "--memory", "1024"]
+  end
+
+  config.vm.define "node" do |node|
+      node.vm.hostname = "node"
+      node.vm.network "private_network", ip: "10.33.168.72"
+  end
+
+end
